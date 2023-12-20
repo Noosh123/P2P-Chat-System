@@ -9,6 +9,7 @@ import threading
 import select
 import logging
 import db
+import bcrypt
 
 # This class is used to process the peer messages sent to registry
 # for each peer connected to registry, a new client thread is created
@@ -52,7 +53,7 @@ class ClientThread(threading.Thread):
                     # join-success is sent to peer,
                     # if an account with this username is not exist, and the account is created
                     else:
-                        db.register(message[1], message[2])
+                        db.register(message[1], bcrypt.hashpw(message[2].encode(), bcrypt.gensalt()))
                         response = "join-success"
                         logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response) 
                         self.tcpClientSocket.send(response.encode())
@@ -77,7 +78,7 @@ class ClientThread(threading.Thread):
                         retrievedPass = db.get_password(message[1])
                         # if password is correct, then peer's thread is added to threads list
                         # peer is added to db with its username, port number, and ip address
-                        if retrievedPass == message[2]:
+                        if bcrypt.checkpw(message[2].encode(), retrievedPass):
                             self.username = message[1]
                             self.lock.acquire()
                             try:
