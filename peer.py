@@ -9,6 +9,7 @@ import threading
 import time
 import select
 import logging
+from re import search
 
 # Server side of peer
 class PeerServer(threading.Thread):
@@ -314,7 +315,7 @@ class peerMain:
             # and password entered by the user
             if choice == "1":
                 username = input("username: ")
-                password = input("password: ")
+                password = self.get_valid_password()
                 
                 self.createAccount(username, password)
             # if choice is 2 and user is not logged in, asks for the username
@@ -411,6 +412,16 @@ class peerMain:
             print("Account created...")
         elif response == "join-exist":
             print("choose another username or login...")
+    
+    # function for getting a valid password
+    def get_valid_password(self):
+        print("Password must be at least 8 characters long and contain at least one non-numeric character.")
+        while True:
+            password = input("Enter password: ")
+            if len(password) >= 8 and search("[^0-9]", password):
+                return password
+            else:
+                print("Invalid password. Please follow the password policy.")
 
     # login function
     def login(self, username, password, peerServerPort):
