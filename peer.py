@@ -10,6 +10,21 @@ import time
 import select
 import logging
 
+server_responses = {
+        "REGISTER": {110: "110 REGSUC",
+                    150: "150 REGDATAERR",
+                    151: "150 REGNAMEUSD"
+                    },
+        "LOGIN":    {111: "111 LOGGEDSUC",
+                    112: "112 ALREADYLOGGEDIN",
+                    152: "152 UNAUTHORIZED",
+                    154: "154 ACCNOTFOUND"
+                    },
+        "LOGOUT":   {114: "114 LOGGEDOUT",
+                    157: "157 USERNOTLOGGEDIN"
+                    }
+}
+
 # Server side of peer
 class PeerServer(threading.Thread):
 
@@ -402,15 +417,17 @@ class peerMain:
         # join message to create an account is composed and sent to registry
         # if response is success then informs the user for account creation
         # if response is exist then informs the user for account existence
-        message = "JOIN " + username + " " + password
+        message = "REGISTER " + username + " " + password
         logging.info("Send to " + self.registryName + ":" + str(self.registryPort) + " -> " + message)
         self.tcpClientSocket.send(message.encode())
         response = self.tcpClientSocket.recv(1024).decode()
         logging.info("Received from " + self.registryName + " -> " + response)
-        if response == "join-success":
+        if response == server_responses['REGISTER'][110]:
             print("Account created...")
-        elif response == "join-exist":
+        elif response == server_responses["REGISTER"][151]:
             print("choose another username or login...")
+        elif response == server_responses["REGISTER"][150]:
+            print("Invalid username or password...")
 
     # login function
     def login(self, username, password, peerServerPort):
@@ -421,16 +438,16 @@ class peerMain:
         self.tcpClientSocket.send(message.encode())
         response = self.tcpClientSocket.recv(1024).decode()
         logging.info("Received from " + self.registryName + " -> " + response)
-        if response == "login-success":
+        if response == server_responses["LOGIN"][111]:
             print("Logged in successfully...")
             return 1
-        elif response == "login-account-not-exist":
+        elif response == server_responses["LOGIN"][154]:
             print("Account does not exist...")
             return 0
-        elif response == "login-online":
+        elif response == server_responses["LOGIN"][112]:
             print("Account is already online...")
             return 2
-        elif response == "login-wrong-password":
+        elif response == server_responses["LOGIN"][152]:
             print("Wrong password...")
             return 3
     
