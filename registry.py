@@ -9,6 +9,7 @@ import threading
 import select
 import logging
 import db
+import bcrypt
 
 server_responses = {
         "REGISTER": {110: "110 REGSUC",
@@ -75,7 +76,7 @@ class ClientThread(threading.Thread):
                     # join-success is sent to peer,
                     # if an account with this username is not exist, and the account is created
                     else:
-                        db.register(message[1], message[2])
+                        db.register(message[1], bcrypt.hashpw(message[2].encode(), bcrypt.gensalt()))
                         response = server_responses['REGISTER'][110]
                         logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response) 
                         self.tcpClientSocket.send(response.encode())
@@ -100,7 +101,7 @@ class ClientThread(threading.Thread):
                         retrievedPass = db.get_password(message[1])
                         # if password is correct, then peer's thread is added to threads list
                         # peer is added to db with its username, port number, and ip address
-                        if retrievedPass == message[2]:
+                        if bcrypt.checkpw(message[2].encode(), retrievedPass):
                             self.username = message[1]
                             self.lock.acquire()
                             try:

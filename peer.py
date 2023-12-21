@@ -9,6 +9,8 @@ import threading
 import time
 import select
 import logging
+from re import search
+import netifaces as ni
 
 server_responses = {
         "REGISTER": {110: "110 REGSUC",
@@ -141,7 +143,7 @@ class PeerServer(threading.Thread):
                         # if a message is received, and if this is not a quit message ':q' and 
                         # if it is not an empty message, show this message to the user
                         elif messageReceived[:2] != ":q" and len(messageReceived)!= 0:
-                            print(self.chattingClientName + ": " + messageReceived)
+                            print("\n" + self.chattingClientName + ": " + messageReceived)
                         # if the message received is a quit message ':q',
                         # makes ischatrequested 1 to receive new incoming request messages
                         # removes the socket of the connected peer from the inputs list
@@ -294,7 +296,11 @@ class peerMain:
     # peer initializations
     def __init__(self):
         # ip address of the registry
-        self.registryName = input("Enter IP address of registry: ")
+        self.registryName = gethostname()
+        try:
+            host=gethostbyname(self.registryName)
+        except gaierror:
+            host = ni.ifaddresses('en0')[ni.AF_INET][0]['addr']
         #self.registryName = 'localhost'
         # port number of the registry
         self.registryPort = 15600
@@ -322,38 +328,81 @@ class peerMain:
         # log file initialization
         logging.basicConfig(filename="peer.log", level=logging.INFO)
         # as long as the user is not logged out, asks to select an option in the menu
-        while choice != "3":
-            # menu selection prompt
-            choice = input("Choose: \nCreate account: 1\nLogin: 2\nLogout: 3\nSearch: 4\nStart a chat: 5\n")
-            # if choice is 1, creates an account with the username
-            # and password entered by the user
-            if choice == "1":
-                username = input("username: ")
-                password = input("password: ")
+        if(input("do you want to create an account? (y/n): ") == "y"):
+                username = input("Enter username: ")
+                password = self.get_valid_password()
                 
                 self.createAccount(username, password)
+        while True:
+            # menu selection prompt
+            #choice = input("Choose: \nCreate account: 1\nLogin: 2\nLogout: 3\nSearch: 4\nStart a chat: 5\n")
+
+            choose_outter = input("Choose: \nLogin: 1\nExit: 2\n")
+            if(choose_outter=="1" and not self.isOnline):
+                    username = input("username: ")
+                    password = input("password: ")
+                # asks for the port number for server's tcp socket
+                    peerServerPort = int(input("Enter a port number for peer server: "))
+                
+                    status = self.login(username, password, peerServerPort)
+                # is user logs in successfully, peer variables are set
+                    if status == 1:
+                        self.isOnline = True
+                        self.loginCredentials = (username, password)
+                        self.peerServerPort = peerServerPort
+                        # creates the server thread for this peer, and runs it
+                        self.peerServer = PeerServer(self.loginCredentials[0], self.peerServerPort)
+                        self.peerServer.start()
+                        # hello message is sent to registry
+                        self.sendHelloMessage()
+            elif(choose_outter=="1" and self.isOnline):
+                print("You are already logged in")
+            else:
+                if self.isOnline:
+                    self.logout(1)
+                    self.isOnline = False
+                    self.loginCredentials = (None, None)
+                    self.peerServer.isOnline = False
+                    self.peerServer.tcpServerSocket.close()
+                    if self.peerClient is not None:
+                        self.peerClient.tcpClientSocket.close()
+                    print("Logged out successfully")
+                    break
+                else:
+                    self.logout(2)
+                    break
+            
+            choice = input("Choose: \nLogout: 3\nSearch: 4\nStart a chat: 5\n")
+
+            # if choice is 1, creates an account with the username
+            # and password entered by the user
+            # if choice == "1":
+            #     username = input("username: ")
+            #     password = self.get_valid_password()
+                
+            #     self.createAccount(username, password)
             # if choice is 2 and user is not logged in, asks for the username
             # and the password to login
-            elif choice == "2" and not self.isOnline:
-                username = input("username: ")
-                password = input("password: ")
-                # asks for the port number for server's tcp socket
-                peerServerPort = int(input("Enter a port number for peer server: "))
+            # elif choice == "2" and not self.isOnline:
+            #     username = input("username: ")
+            #     password = input("password: ")
+            #     # asks for the port number for server's tcp socket
+            #     peerServerPort = int(input("Enter a port number for peer server: "))
                 
-                status = self.login(username, password, peerServerPort)
-                # is user logs in successfully, peer variables are set
-                if status == 1:
-                    self.isOnline = True
-                    self.loginCredentials = (username, password)
-                    self.peerServerPort = peerServerPort
-                    # creates the server thread for this peer, and runs it
-                    self.peerServer = PeerServer(self.loginCredentials[0], self.peerServerPort)
-                    self.peerServer.start()
-                    # hello message is sent to registry
-                    self.sendHelloMessage()
+            #     status = self.login(username, password, peerServerPort)
+            #     # is user logs in successfully, peer variables are set
+            #     if status == 1:
+            #         self.isOnline = True
+            #         self.loginCredentials = (username, password)
+            #         self.peerServerPort = peerServerPort
+            #         # creates the server thread for this peer, and runs it
+            #         self.peerServer = PeerServer(self.loginCredentials[0], self.peerServerPort)
+            #         self.peerServer.start()
+            #         # hello message is sent to registry
+            #         self.sendHelloMessage()
             # if choice is 3 and user is logged in, then user is logged out
             # and peer variables are set, and server and client sockets are closed
-            elif choice == "3" and self.isOnline:
+            if choice == "3" and self.isOnline:
                 self.logout(1)
                 self.isOnline = False
                 self.loginCredentials = (None, None)
@@ -362,9 +411,7 @@ class peerMain:
                 if self.peerClient is not None:
                     self.peerClient.tcpClientSocket.close()
                 print("Logged out successfully")
-            # is peer is not logged in and exits the program
-            elif choice == "3":
-                self.logout(2)
+            
             # if choice is 4 and user is online, then user is asked
             # for a username that is wanted to be searched
             elif choice == "4" and self.isOnline:
@@ -428,6 +475,16 @@ class peerMain:
             print("choose another username or login...")
         elif response == server_responses["REGISTER"][150]:
             print("Invalid username or password...")
+    
+    # function for getting a valid password
+    def get_valid_password(self):
+        print("Password must be at least 8 characters long and contain at least one non-numeric character.")
+        while True:
+            password = input("Enter password: ")
+            if len(password) >= 8 and search("[^0-9]", password):
+                return password
+            else:
+                print("Invalid password. Please follow the password policy.")
 
     # login function
     def login(self, username, password, peerServerPort):
