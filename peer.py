@@ -12,6 +12,21 @@ import logging
 from re import search
 import netifaces as ni
 
+server_responses = {
+        "REGISTER": {110: "110 REGSUC",
+                    150: "150 REGDATAERR",
+                    151: "150 REGNAMEUSD"
+                    },
+        "LOGIN":    {111: "111 LOGGEDSUC",
+                    112: "112 ALREADYLOGGEDIN",
+                    152: "152 UNAUTHORIZED",
+                    154: "154 ACCNOTFOUND"
+                    },
+        "LOGOUT":   {114: "114 LOGGEDOUT",
+                    157: "157 USERNOTLOGGEDIN"
+                    }
+}
+
 # Server side of peer
 class PeerServer(threading.Thread):
 
@@ -313,17 +328,17 @@ class peerMain:
         # log file initialization
         logging.basicConfig(filename="peer.log", level=logging.INFO)
         # as long as the user is not logged out, asks to select an option in the menu
-        while True:
-            # menu selection prompt
-            #choice = input("Choose: \nCreate account: 1\nLogin: 2\nLogout: 3\nSearch: 4\nStart a chat: 5\n")
-            if(input("do you want to create an account? (y/n): ") == "y"):
+        if(input("do you want to create an account? (y/n): ") == "y"):
                 username = input("Enter username: ")
                 password = self.get_valid_password()
                 
                 self.createAccount(username, password)
+        while True:
+            # menu selection prompt
+            #choice = input("Choose: \nCreate account: 1\nLogin: 2\nLogout: 3\nSearch: 4\nStart a chat: 5\n")
 
-            print("Choose: \nLogin: 1\nExit: 2\n")
-            if(input()=="1" and not self.isOnline):
+            choose_outter = input("Choose: \nLogin: 1\nExit: 2\n")
+            if(choose_outter=="1" and not self.isOnline):
                     username = input("username: ")
                     password = input("password: ")
                 # asks for the port number for server's tcp socket
@@ -340,9 +355,22 @@ class peerMain:
                         self.peerServer.start()
                         # hello message is sent to registry
                         self.sendHelloMessage()
+            elif(choose_outter=="1" and self.isOnline):
+                print("You are already logged in")
             else:
-                self.logout(2)
-                break
+                if self.isOnline:
+                    self.logout(1)
+                    self.isOnline = False
+                    self.loginCredentials = (None, None)
+                    self.peerServer.isOnline = False
+                    self.peerServer.tcpServerSocket.close()
+                    if self.peerClient is not None:
+                        self.peerClient.tcpClientSocket.close()
+                    print("Logged out successfully")
+                    break
+                else:
+                    self.logout(2)
+                    break
             
             choice = input("Choose: \nLogout: 3\nSearch: 4\nStart a chat: 5\n")
 
@@ -436,15 +464,17 @@ class peerMain:
         # join message to create an account is composed and sent to registry
         # if response is success then informs the user for account creation
         # if response is exist then informs the user for account existence
-        message = "JOIN " + username + " " + password
+        message = "REGISTER " + username + " " + password
         logging.info("Send to " + self.registryName + ":" + str(self.registryPort) + " -> " + message)
         self.tcpClientSocket.send(message.encode())
         response = self.tcpClientSocket.recv(1024).decode()
         logging.info("Received from " + self.registryName + " -> " + response)
-        if response == "join-success":
+        if response == server_responses['REGISTER'][110]:
             print("Account created...")
-        elif response == "join-exist":
+        elif response == server_responses["REGISTER"][151]:
             print("choose another username or login...")
+        elif response == server_responses["REGISTER"][150]:
+            print("Invalid username or password...")
     
     # function for getting a valid password
     def get_valid_password(self):
@@ -465,16 +495,16 @@ class peerMain:
         self.tcpClientSocket.send(message.encode())
         response = self.tcpClientSocket.recv(1024).decode()
         logging.info("Received from " + self.registryName + " -> " + response)
-        if response == "login-success":
+        if response == server_responses["LOGIN"][111]:
             print("Logged in successfully...")
             return 1
-        elif response == "login-account-not-exist":
+        elif response == server_responses["LOGIN"][154]:
             print("Account does not exist...")
             return 0
-        elif response == "login-online":
+        elif response == server_responses["LOGIN"][112]:
             print("Account is already online...")
             return 2
-        elif response == "login-wrong-password":
+        elif response == server_responses["LOGIN"][152]:
             print("Wrong password...")
             return 3
     
