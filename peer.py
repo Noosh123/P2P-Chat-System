@@ -135,6 +135,16 @@ class PeerServer(threading.Thread):
                                 s.send(message.encode())
                                 # remove the peer from the inputs list so that it will not monitor this socket
                                 inputs.remove(s)
+
+                        
+                        elif messageReceived[:9] == "JOIN-ROOM":
+                            messageReceived = messageReceived.split()
+                            print("Incoming Room-request to Room: " + messageReceived[1] + " From: "+ messageReceived[2]+ " >> ")
+                            print("Enter YES to accept or NO to reject:  ")
+                            self.isChatRequested = 0
+                            inputs.remove(s)
+
+
                         # if an OK message is received then ischatrequested is made 1 and then next messages will be shown to the peer of this server
                         elif messageReceived == "OK":
                             self.isChatRequested = 1
@@ -144,6 +154,9 @@ class PeerServer(threading.Thread):
                             inputs.remove(s)
                         # if a message is received, and if this is not a quit message ':q' and 
                         # if it is not an empty message, show this message to the user
+                        
+                        
+
                         elif messageReceived[:2] != ":q" and len(messageReceived)!= 0:
                             print("\n" + self.chattingClientName + ": " + messageReceived)
                         # if the message received is a quit message ':q',
@@ -291,6 +304,28 @@ class PeerClient(threading.Thread):
                 self.responseReceived = None
                 self.tcpClientSocket.close()
                 
+    def join_request(self, room_name, username):
+        self.tcpClientSocket.connect((self.ipToConnect, self.portToConnect))
+        message = "JOIN-ROOM " + room_name + " " + username
+        logging.info("Send to " + self.ipToConnect + ":" + str(self.portToConnect) + " -> " + message)
+        self.tcpClientSocket.send(message.encode())
+        response = self.tcpClientSocket.recv(1024).decode().split()
+        if response[0] == "Join-succ":
+            print("Room Joining is successful...")
+            sender_socket = socket(AF_INET, SOCK_STREAM)
+            sender_socket.connect((gethostname(), 15600))
+            regmessage = "JOIN-succ " + room_name + " " + username
+            sender_socket.send(regmessage.encode())
+            sender_socket.close()
+            self.tcpClientSocket.close()
+            
+        if response[0] == "Join-fail":
+            print("Joining the room failed...")
+            self.tcpClientSocket.close()
+            logging.info("Received from " + self.ipToConnect + ":" + str(self.portToConnect) + " -> " + " ".join(response))
+        
+        
+        
 
 # main process of the peer
 class peerMain:
@@ -374,7 +409,7 @@ class peerMain:
                     self.logout(2)
                     break
             
-            choice = input("Choose: \nLogout: 3\nSearch: 4\nStart a chat: 5\nCreate Room: 6\nJoin Room: 7\n")
+            choice = input("Choose: \nLogout: 3\nSearch: 4\nStart a chat: 5\nCreate Room: 6\nJoin an Existing Room: 7\nJoin new Room: 8\n")
 
             # if choice is 1, creates an account with the username
             # and password entered by the user
@@ -443,6 +478,17 @@ class peerMain:
 
             elif choice == "7" and self.isOnline:
                 self.get_rooms(self.loginCredentials[0])
+
+            elif choice == "8" and self.isOnline:
+                room_name = input("Enter the name of the room: ")
+                roomSearchStatus = self.SearchRoom(room_name)
+                if roomSearchStatus != None and roomSearchStatus != 0:
+                    roomSearchStatus = roomSearchStatus.split(":")
+                    self.peerclient = PeerClient(roomSearchStatus[0], int(roomSearchStatus[1]) , self.loginCredentials[0], self.peerServer, None)    
+                    a = threading.Thread(target=self.peerclient.join_request,args=(room_name,self.loginCredentials[0]))
+                    a.start()
+                    a.join()
+                    
                 
 
             # if this is the receiver side then it will get the prompt to accept an incoming request during the main loop
@@ -457,6 +503,16 @@ class peerMain:
                 self.peerClient = PeerClient(self.peerServer.connectedPeerIP, self.peerServer.connectedPeerPort , self.loginCredentials[0], self.peerServer, "OK")
                 self.peerClient.start()
                 self.peerClient.join()
+
+            elif choice == "YES" and self.isOnline:
+                self.peerServer.connectedPeerSocket.send("Join-succ".encode())
+                self.peerServer.isChatRequested = 0
+                logging.info("Send to " + self.peerServer.connectedPeerIP + " -> Join-succ")
+
+            elif choice == "NO" and self.isOnline:
+                self.peerServer.connectedPeerSocket.send("Join-fail".encode())
+                self.peerServer.isChatRequested = 0
+                logging.info("Send to " + self.peerServer.connectedPeerIP + " -> Join-fail")
             # if user rejects the chat request then reject message is sent to the requester side
             elif choice == "REJECT" and self.isOnline:
                 self.peerServer.connectedPeerSocket.send("REJECT".encode())
@@ -577,6 +633,24 @@ class peerMain:
             print(tabulate(response, headers="firstrow", tablefmt="psql"))
         else:
             print("Room retrieval failed...")
+    
+
+    def SearchRoom(self, room_name):
+        message = "SEARCHROOM " + room_name
+        logging.info("Send to " + self.registryName + ":" + str(self.registryPort) + " -> " + message)
+        self.tcpClientSocket.send(message.encode())
+        response = self.tcpClientSocket.recv(1024).decode().split()
+        logging.info("Received from " + self.registryName + " -> " + " ".join(response))
+        if response[0] == "searchroom-success":
+            print("Room found successfully...")
+            print("Requesting to join the room...")
+            return response[1]
+        elif response[0] == "Owner-offline":
+            print("Room owner is offline...")
+            return 0
+        else:
+            print("Room not found...")
+            return None
 
     # function for sending hello message
     # a timer thread is used to send hello messages to udp socket of registry

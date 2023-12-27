@@ -88,7 +88,7 @@ class DB:
 
     def is_Room_exist(self, room_name):
         # Check if a room exists
-        room = self.db.accounts.find({"name": room_name})
+        room = self.db.Chat_Rooms.find({"name": room_name})
         doc_count = 0
         for document in room:
             doc_count += 1
@@ -112,3 +112,16 @@ class DB:
         rooms = self.db.Chat_Rooms.find({"members": username})
         room_data = [[room["name"], room["owner"]] for room in rooms]
         return room_data
+
+
+    # write a function that returns the owner of a room
+    def get_room_owner(self, room_name):
+        room = self.db.Chat_Rooms.find_one({"name": room_name})
+        return room["owner"]
+    
+    # write a function that adds a member to a room
+    def add_member_to_room(self, room_name, username):
+        self.db.Chat_Rooms.update_one(
+                {"name": room_name},
+                {"$addToSet": {"members": username}}
+            )   

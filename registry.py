@@ -197,7 +197,27 @@ class ClientThread(threading.Thread):
                         response = pickle.dumps(rooms)
                         logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + str(response))
                         self.tcpClientSocket.send(response)
+                
 
+                elif message[0] == "SEARCHROOM":
+                    if db.is_Room_exist(message[1]):
+                        owner = db.get_room_owner(message[1])
+                        if db.is_account_online(owner):
+                            peer_info = db.get_peer_ip_port(owner)
+                            response = "searchroom-success " + peer_info[0] + ":" + peer_info[1]
+                            logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response)
+                            self.tcpClientSocket.send(response.encode())
+                        else:
+                            response = "Owner-offline" 
+                            logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response)
+                            self.tcpClientSocket.send(response.encode())
+                    else:
+                        response = "searchroom-room-not-found"
+                        logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response)
+                        self.tcpClientSocket.send(response.encode())
+                
+                elif message[0] == "JOIN-succ":
+                    db.add_member_to_room(message[1], message[2])
                     
 
             except OSError as oErr:
