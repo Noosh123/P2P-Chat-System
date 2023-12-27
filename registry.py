@@ -10,6 +10,7 @@ import select
 import logging
 import db
 import bcrypt
+import pickle
 
 server_responses = {
         "REGISTER": {110: "110 REGSUC",
@@ -183,6 +184,20 @@ class ClientThread(threading.Thread):
                         response = "crtroom-success"
                         logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response)
                         self.tcpClientSocket.send(response.encode())
+
+
+                elif message[0] == "GETROOMS":
+                    rooms = db.get_rooms_for_user(message[1])
+                    if rooms == []:
+                        response = "getrooms-no-rooms"
+                        logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response)
+                        self.tcpClientSocket.send(response.encode())
+                    else:
+                        rooms.insert(0,"getrooms-success")
+                        response = pickle.dumps(rooms)
+                        logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + str(response))
+                        self.tcpClientSocket.send(response)
+
                     
 
             except OSError as oErr:

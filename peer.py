@@ -11,6 +11,8 @@ import select
 import logging
 from re import search
 import netifaces as ni
+import pickle
+from tabulate import tabulate 
 
 server_responses = {
         "REGISTER": {110: "110 REGSUC",
@@ -437,7 +439,12 @@ class peerMain:
             elif choice == "6" and self.isOnline:
                 room_name = input("Enter the name of the room: ")
                 self.createRoom(room_name, self.loginCredentials[0])
+
+
+            elif choice == "7" and self.isOnline:
+                self.get_rooms(self.loginCredentials[0])
                 
+
             # if this is the receiver side then it will get the prompt to accept an incoming request during the main loop
             # that's why response is evaluated in main process not the server thread even though the prompt is printed by server
             # if the response is ok then a client is created for this peer with the OK message and that's why it will directly
@@ -557,6 +564,19 @@ class peerMain:
             print("Room created successfully...")
         else:
             print("Room creation failed...")
+
+    def get_rooms(self, username):
+        message = "GETROOMS " + username
+        logging.info("Send to " + self.registryName + ":" + str(self.registryPort) + " -> " + message)
+        self.tcpClientSocket.send(message.encode())
+        response = pickle.loads(self.tcpClientSocket.recv(1024))
+        logging.info("Received from " + self.registryName + " -> " + str(response))
+        if response[0] == "getrooms-success":
+            print("Rooms retrieved successfully...")
+            response[0] = ["Room Name", "Owner"]
+            print(tabulate(response, headers="firstrow", tablefmt="psql"))
+        else:
+            print("Room retrieval failed...")
 
     # function for sending hello message
     # a timer thread is used to send hello messages to udp socket of registry

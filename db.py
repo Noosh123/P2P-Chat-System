@@ -107,3 +107,8 @@ class DB:
                 if self.is_account_online(member):
                     online_members.append(member)
         return online_members
+    
+    def get_rooms_for_user(self, username):
+        rooms = self.db.Chat_Rooms.find({"members": username})
+        room_data = [[room["name"], room["owner"]] for room in rooms]
+        return room_data
