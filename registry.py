@@ -166,6 +166,25 @@ class ClientThread(threading.Thread):
                         response = "search-user-not-found"
                         logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response) 
                         self.tcpClientSocket.send(response.encode())
+
+                elif message[0] == "CRTROOM":
+                    if len(message) != 3:
+                        response = "crtroom-data-error"
+                        print("From-> " + self.ip + ":" + str(self.port) + " " + response)
+                        logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response)
+                        self.tcpClientSocket.send(response.encode())
+                    elif db.is_Room_exist(message[1]):
+                        response = "crtroom-room-exist"
+                        print("From-> " + self.ip + ":" + str(self.port) + " " + response)
+                        logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response)
+                        self.tcpClientSocket.send(response.encode())
+                    else:
+                        db.create_ChatRoom(message[1], message[2])
+                        response = "crtroom-success"
+                        logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response)
+                        self.tcpClientSocket.send(response.encode())
+                    
+
             except OSError as oErr:
                 logging.error("OSError: {0}".format(oErr)) 
 

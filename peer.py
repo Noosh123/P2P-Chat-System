@@ -372,7 +372,7 @@ class peerMain:
                     self.logout(2)
                     break
             
-            choice = input("Choose: \nLogout: 3\nSearch: 4\nStart a chat: 5\n")
+            choice = input("Choose: \nLogout: 3\nSearch: 4\nStart a chat: 5\nCreate Room: 6\nJoin Room: 7\n")
 
             # if choice is 1, creates an account with the username
             # and password entered by the user
@@ -433,6 +433,11 @@ class peerMain:
                     self.peerClient = PeerClient(searchStatus[0], int(searchStatus[1]) , self.loginCredentials[0], self.peerServer, None)
                     self.peerClient.start()
                     self.peerClient.join()
+
+            elif choice == "6" and self.isOnline:
+                room_name = input("Enter the name of the room: ")
+                self.createRoom(room_name, self.loginCredentials[0])
+                
             # if this is the receiver side then it will get the prompt to accept an incoming request during the main loop
             # that's why response is evaluated in main process not the server thread even though the prompt is printed by server
             # if the response is ok then a client is created for this peer with the OK message and that's why it will directly
@@ -541,6 +546,18 @@ class peerMain:
             print(username + " is not found")
             return None
     
+
+    def createRoom(self, room_name, owner):
+        message = "CRTROOM " + room_name + " " + owner
+        logging.info("Send to " + self.registryName + ":" + str(self.registryPort) + " -> " + message)
+        self.tcpClientSocket.send(message.encode())
+        response = self.tcpClientSocket.recv(1024).decode().split()
+        logging.info("Received from " + self.registryName + " -> " + " ".join(response))
+        if response[0] == "crtroom-success":
+            print("Room created successfully...")
+        else:
+            print("Room creation failed...")
+
     # function for sending hello message
     # a timer thread is used to send hello messages to udp socket of registry
     def sendHelloMessage(self):
