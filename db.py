@@ -21,10 +21,6 @@ class DB:
         else:
             return False
 
-        # if self.db.accounts.find({'username': username}).count() > 0:
-        #     return True
-        # else:
-        #     return False
 
     # registers a user
     def register(self, username, password):
@@ -68,3 +64,46 @@ class DB:
     def get_peer_ip_port(self, username):
         res = self.db.online_peers.find_one({"username": username})
         return (res["ip"], res["port"])
+    
+
+    
+
+    def create_ChatRoom(self, name, owner):
+        # Create a new chat room
+        room_data = {
+            "name": name,
+            "owner": owner,
+            "members": [owner]  # Owner is the first member
+        }
+        self.db.Chat_Rooms.insert_one(room_data)
+
+    def join_Room(self, room_name, username):
+        # Add a user to an existing room
+        self.db.Chat_Rooms.update_one(
+                {"name": room_name},
+                {"$addToSet": {"members": username}}
+            )
+        
+
+
+    def is_Room_exist(self, room_name):
+        # Check if a room exists
+        room = self.db.accounts.find({"name": room_name})
+        doc_count = 0
+        for document in room:
+            doc_count += 1
+        if doc_count > 0:
+            return True
+        else:
+            return False
+        
+    
+    def get_online_members(self, room_name):
+        # Get online members in a specific chat room
+        online_members = []
+        room = self.db.Chat_Rooms.find_one({"name": room_name})
+        if room:
+            for member in room['members']:
+                if self.is_account_online(member):
+                    online_members.append(member)
+        return online_members
