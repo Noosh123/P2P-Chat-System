@@ -46,11 +46,12 @@ class DB:
             return False
 
     # logs in the user
-    def user_login(self, username, ip, port):
+    def user_login(self, username, ip, port, udp_port):
         online_peer = {
             "username": username,
             "ip": ip,
-            "port": port
+            "port": port,
+            "udp_port": udp_port
         }
         #self.db.online_peers.insert(online_peer)
         self.db.online_peers.insert_one(online_peer)
@@ -125,3 +126,12 @@ class DB:
                 {"name": room_name},
                 {"$addToSet": {"members": username}}
             )   
+        
+    #write a function that takes an array of usernames and returns an array of udp ports
+    def get_udp_ports(self, usernames):
+        udp_ports = []
+        for username in usernames:
+            udp_ports.append(self.db.online_peers.find_one({"username": username})["udp_port"])
+        return udp_ports
+    
+   

@@ -110,7 +110,7 @@ class ClientThread(threading.Thread):
                             finally:
                                 self.lock.release()
 
-                            db.user_login(message[1], self.ip, message[3])
+                            db.user_login(message[1], self.ip, message[3], message[4])
                             # login-success is sent to peer,
                             # and a udp server thread is created for this peer, and thread is started
                             # timer thread of the udp server is started
@@ -202,22 +202,48 @@ class ClientThread(threading.Thread):
                 elif message[0] == "SEARCHROOM":
                     if db.is_Room_exist(message[1]):
                         owner = db.get_room_owner(message[1])
+                        members = db.get_online_members(message[1])
+                        
                         if db.is_account_online(owner):
                             peer_info = db.get_peer_ip_port(owner)
-                            response = "searchroom-success " + peer_info[0] + ":" + peer_info[1]
-                            logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response)
-                            self.tcpClientSocket.send(response.encode())
+                            response={
+                            "heading": "searchroom-success",
+                            "peer_ip": peer_info[0],
+                            "peer_port": peer_info[1],
+                            "owner": owner,
+                            "members": members
+                        }
+                            
+                            logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response["heading"])
+                            response = pickle.dumps(response)
+                            self.tcpClientSocket.send(response)
                         else:
-                            response = "Owner-offline" 
-                            logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response)
-                            self.tcpClientSocket.send(response.encode())
+                            response = {
+                        "heading": "Owner-offline"
+                        }
+                            logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response["heading"])
+                            response = pickle.dumps(response)
+                            self.tcpClientSocket.send(response)
                     else:
-                        response = "searchroom-room-not-found"
-                        logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response)
-                        self.tcpClientSocket.send(response.encode())
+                        response = {
+                        "heading": "searchroom-room-not-found"
+                        }
+                        logging.info("Send to " + self.ip + ":" + str(self.port) + " -> " + response["heading"])
+                        response = pickle.dumps(response)
+                        self.tcpClientSocket.send(response)
                 
                 elif message[0] == "JOIN-succ":
                     db.add_member_to_room(message[1], message[2])
+
+                elif message[0] == "GETPORTS":
+                    usernames = db.get_online_members(message[1])
+                    response = db.get_udp_ports(usernames)
+                    response = {
+                        "heading": "getports-success",
+                        "ports": response
+                    }
+                    response = pickle.dumps(response)
+                    self.tcpClientSocket.send(response)
                     
 
             except OSError as oErr:
