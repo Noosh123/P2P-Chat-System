@@ -12,6 +12,8 @@ from re import search
 import netifaces as ni
 import pickle
 from tabulate import tabulate 
+terminate=threading.Event()
+terminate.clear()
 
 server_responses = {
         "REGISTER": {110: "110 REGSUC",
@@ -95,15 +97,15 @@ class PeerServer(threading.Thread):
             import netifaces as ni
             self.peerServerHostname = ni.ifaddresses('en0')[ni.AF_INET][0]['addr']
         print(self.udpServerPort)
+        
         self.udp_receiver = UDPReceiver(self.peerServerHostname, self.udpServerPort)
-        self.udp_receiver.start()
         # ip address of this peer
         #self.peerServerHostname = 'localhost'
         # socket initializations for the server of the peer
         self.tcpServerSocket.bind((self.peerServerHostname, self.peerServerPort))
         self.tcpServerSocket.listen(4)
         # inputs sockets that should be listened
-        inputs = [self.tcpServerSocket]
+        inputs = [self.tcpServerSocket,self.udp_receiver.udpServerSocket]
         # server listens as long as there is a socket to listen in the inputs list and the user is online
         while inputs and self.isOnline:
             # monitors for the incoming connections
@@ -127,6 +129,8 @@ class PeerServer(threading.Thread):
                             self.connectedPeerIP = addr[0]
                     # if the socket that receives the data is the one that
                     # is used to communicate with a connected peer, then enters here
+                    elif s is self.udp_receiver.udpServerSocket:
+                        self.udp_receiver.run()
                     else:
                         # message is received from connected peer
                         messageReceived = s.recv(1024).decode()
@@ -229,20 +233,20 @@ class UDPReceiver(threading.Thread):
             self._initialized = True
 
     def run(self):
-        while True:
-            response = self.udpServerSocket.recvfrom(1024)
-            response = pickle.loads(response[0])
-            # Assign a color to the sender if they don't have one yet
+        print("UDP Receiver started...")
+        response = self.udpServerSocket.recvfrom(1024)
+        print('recievesddsad message')
+        response = pickle.loads(response[0])
+        # Assign a color to the sender if they don't have one yet
 
-            if self.in_this_room and self.room_name:
-                print(response["sender"] + ": " + response["message"])
-            else:
-                print('\033[A' + ' ' * len("Enter your choice:") + '\033[A', end='', flush=True)
-                print()
-                print(f"received message from {response['sender']} in room {response['room_name']}")
-                self.unread_messages.append(response)
-                print("Enter your choice:")
-    
+        if self.in_this_room and self.room_name:
+            print(response["sender"] + ": " + response["message"])
+        else:
+            print('\033[A' + ' ' * len("Enter your choice:") + '\033[A', end='', flush=True)
+            print()
+            print(f"received message from {response['sender']} in room {response['room_name']}")
+            self.unread_messages.append(response)
+            print("Enter your choice:")
     def print_unread_messages(self):
         for message in self.unread_messages:
             color = self.sender_colors[message["sender"]]
@@ -509,20 +513,18 @@ class peerMain:
             elif(choose_outter=="1" and self.isOnline):
                 print("You are already logged in")
             else:
-                if self.isOnline:
-                    self.logout(1)
-                    self.isOnline = False
-                    self.loginCredentials = (None, None)
-                    self.peerServer.isOnline = False
-                    self.peerServer.tcpServerSocket.close()
-                    if self.peerClient is not None:
-                        self.peerClient.tcpClientSocket.close()
-                    # close all running threads
-                    print("Logged out successfully")
-                    break
-                else:
-                    self.logout(2)
-                    break
+                self.logout(2)
+                self.isOnline = False
+                self.loginCredentials = (None, None)
+                self.peerServer.isOnline = False
+                self.peerServer.tcpServerSocket.close()
+                if self.peerClient is not None:
+                    self.peerClient.tcpClientSocket.close()
+                # close all running threads
+                terminate.set()
+                print("Logged out successfully")
+                break
+
             
             choice = input("Choose: \nLogout: 3\nSearch: 4\nStart a chat: 5\nCreate Room: 6\nJoin an Existing Room: 7\nJoin new Room: 8\n")
 
