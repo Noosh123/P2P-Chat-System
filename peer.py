@@ -6,6 +6,7 @@
 from socket import *
 import threading
 import time
+import sys
 import select
 import logging
 from re import search
@@ -229,7 +230,6 @@ class UDPReceiver(threading.Thread):
             self.unread_messages = []
             self.in_this_room = False
             self.room_name = None
-            self.sender_colors = {}
             self._initialized = True
 
     def run(self):
@@ -237,7 +237,7 @@ class UDPReceiver(threading.Thread):
         response = self.udpServerSocket.recvfrom(1024)
         print('recievesddsad message')
         response = pickle.loads(response[0])
-        # Assign a color to the sender if they don't have one yet
+
 
         if self.in_this_room and self.room_name:
             print(response["sender"] + ": " + response["message"])
@@ -246,10 +246,8 @@ class UDPReceiver(threading.Thread):
             print()
             print(f"received message from {response['sender']} in room {response['room_name']}")
             self.unread_messages.append(response)
-            print("Enter your choice:")
     def print_unread_messages(self):
         for message in self.unread_messages:
-            color = self.sender_colors[message["sender"]]
             print(f"{message['sender']}: {message['message']}")
             self.unread_messages.remove(message)
 
@@ -486,10 +484,8 @@ class peerMain:
                 password = self.get_valid_password()
                 
                 self.createAccount(username, password)
-        while True:
-            # menu selection prompt
-            #choice = input("Choose: \nCreate account: 1\nLogin: 2\nLogout: 3\nSearch: 4\nStart a chat: 5\n")
 
+        while True:
             choose_outter = input("Choose: \nLogin: 1\nExit: 2\n")
             if(choose_outter=="1" and not self.isOnline):
                     username = input("username: ")
@@ -510,21 +506,27 @@ class peerMain:
                         self.peerServer.start()
                         # hello message is sent to registry
                         self.sendHelloMessage()
+                        break
             elif(choose_outter=="1" and self.isOnline):
                 print("You are already logged in")
-            else:
-                self.logout(2)
-                self.isOnline = False
-                self.loginCredentials = (None, None)
-                self.peerServer.isOnline = False
-                self.peerServer.tcpServerSocket.close()
-                if self.peerClient is not None:
-                    self.peerClient.tcpClientSocket.close()
-                # close all running threads
-                terminate.set()
-                print("Logged out successfully")
                 break
-
+            
+            else:
+                # self.logout(2)
+                # self.isOnline = False
+                # self.loginCredentials = (None, None)
+                # self.peerServer.isOnline = False
+                # self.peerServer.tcpServerSocket.close()
+                # if self.peerClient is not None:
+                #     self.peerClient.tcpClientSocket.close()
+                # # close all running threads
+                # terminate.set()
+                print("Logged out successfully")
+                sys.exit()
+        while True:
+            # menu selection prompt
+            #choice = input("Choose: \nCreate account: 1\nLogin: 2\nLogout: 3\nSearch: 4\nStart a chat: 5\n")
+            
             
             choice = input("Choose: \nLogout: 3\nSearch: 4\nStart a chat: 5\nCreate Room: 6\nJoin an Existing Room: 7\nJoin new Room: 8\n")
 
@@ -565,6 +567,7 @@ class peerMain:
                 if self.peerClient is not None:
                     self.peerClient.tcpClientSocket.close()
                 print("Logged out successfully")
+                break
                 
             
             # if choice is 4 and user is online, then user is asked
@@ -614,8 +617,7 @@ class peerMain:
                 room_name = input("Enter the name of the room: ")
                 roomSearchStatus = self.SearchRoom(room_name)
                 if roomSearchStatus != None and roomSearchStatus != 0:
-                    roomSearchStatus = roomSearchStatus.split(":")
-                    self.peerclient = PeerClient(roomSearchStatus[0], int(roomSearchStatus[1]) , self.loginCredentials[0], self.peerServer, None)    
+                    self.peerclient = PeerClient(roomSearchStatus["peer_ip"], int(roomSearchStatus["peer_port"]) , self.loginCredentials[0], self.peerServer, None)    
                     a = threading.Thread(target=self.peerclient.join_request,args=(room_name,self.loginCredentials[0]))
                     a.start()
                     a.join()
